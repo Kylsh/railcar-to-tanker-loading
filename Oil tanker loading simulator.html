@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Симулятор налива нефти в танкер</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f4f6f9;--fg:#1c2430;--card:#fff;--line:#bcc5d1;--oil:#8a5a1c;--ok:#1f9d55;--warn:#e0a100;--bad:#d64545;--mut:#667386;--acc:#2b6cd4;--sea:#dbe8f7;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--fg:#e6eaf0;--card:#1b222b;--line:#3a4552;--oil:#c58a3a;--ok:#3fbf78;--warn:#f0b429;--bad:#f06565;--mut:#97a3b3;--acc:#6aa3f5;--sea:#1d2b3d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161c;--fg:#e6eaf0;--card:#1b222b;--line:#3a4552;--oil:#c58a3a;--ok:#3fbf78;--warn:#f0b429;--bad:#f06565;--mut:#97a3b3;--acc:#6aa3f5;--sea:#1d2b3d;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:900px;margin:0 auto;padding:14px}
+h1{font-size:20px;margin:4px 0}
+.mut{color:var(--mut);margin:0 0 10px}
+#banner{padding:9px 12px;border-radius:8px;margin:8px 0;font-weight:600;background:var(--card);border:1px solid var(--line)}
+#banner.bad{background:var(--bad);color:#fff;border-color:var(--bad)}
+#banner.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+.wrap{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+svg{display:block;width:100%;min-width:560px;height:auto}
+svg text{fill:var(--fg);font-size:12px;text-anchor:middle}
+.shell{fill:none;stroke:var(--fg);stroke-width:2}
+.oil{fill:var(--oil)}
+.sea{fill:var(--sea)}
+.p{fill:none;stroke:var(--line);stroke-width:8}
+.on .p{stroke:var(--oil);stroke-dasharray:14 6;animation:fl .6s linear infinite}
+@keyframes fl{to{stroke-dashoffset:-20}}
+.pump{fill:var(--card);stroke:var(--fg);stroke-width:3}
+.pump.bad{stroke:var(--bad)}
+.rotor line{stroke:var(--fg);stroke-width:4;stroke-linecap:round}
+.spin{animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.valve{stroke:var(--fg);stroke-width:2}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.card b{display:block;font-size:18px}
+.card span{color:var(--mut);font-size:12px}
+.bar{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin:6px 0 10px}
+.bar i{display:block;height:100%;width:0;background:var(--oil)}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;align-items:center}
+button,select{font:inherit;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+button.go{background:var(--ok);color:#fff;border-color:var(--ok)}
+button.stop{background:var(--bad);color:#fff;border-color:var(--bad)}
+button.rs{background:var(--acc);color:#fff;border-color:var(--acc)}
+.faults label{display:inline-flex;gap:6px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:0 6px 6px 0}
+h2{font-size:15px;margin:12px 0 6px}
+</style></head><body><main>
+<h1>Налив нефти: вагоны-цистерны в танкер</h1>
+<p class="mut">Учебная симуляция логики PLC (80 т). Нажми «Старт» и смотри, как идёт налив. Ниже можно имитировать отказы.</p>
+<div id="banner">Готов к запуску</div>
+<div class="wrap"><svg id="svg" viewBox="0 0 760 290" role="img" aria-label="Мнемосхема налива">
+<rect class="sea" x="500" y="205" width="250" height="75" rx="6"/>
+<rect class="shell" x="20" y="30" width="150" height="70" rx="8"/><rect id="f1" class="oil" x="24" y="34" width="142" height="62"/><text x="95" y="22">Вагон 1</text>
+<rect class="shell" x="20" y="170" width="150" height="70" rx="8"/><rect id="f2" class="oil" x="24" y="174" width="142" height="62"/><text x="95" y="262">Вагон 2</text>
+<g class="pipes"><path class="p" d="M170 65H198M224 65H240V135M170 205H198M224 205H240V135M240 135H274M326 135H380M420 135H458M484 135H520"/></g>
+<rect id="v1" class="valve" x="198" y="52" width="26" height="26" rx="4"/><text x="211" y="96">XV-101</text>
+<rect id="v2" class="valve" x="198" y="192" width="26" height="26" rx="4"/><text x="211" y="236">XV-102</text>
+<circle id="pump" class="pump" cx="300" cy="135" r="26"/>
+<g class="rotor" transform="translate(300 135)"><g id="rot"><line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/></g></g>
+<text x="300" y="185">Насос P-101</text>
+<rect x="380" y="118" width="40" height="34" rx="4" class="shell"/><text x="400" y="140">FT</text><text x="400" y="170">Расход</text>
+<rect id="v3" class="valve" x="458" y="122" width="26" height="26" rx="4"/><text x="471" y="170">XV-201</text>
+<rect class="shell" x="520" y="60" width="220" height="140" rx="10"/><rect id="ft" class="oil" x="524" y="196" width="212" height="0"/>
+<text x="630" y="52">Танкер</text><text id="tm" x="630" y="135" style="font-size:18px;font-weight:700">0.0 т</text>
+</svg></div>
+<h2>Показатели</h2>
+<div class="bar"><i id="pb"></i></div>
+<div class="grid" id="vals"></div>
+<h2>Управление</h2>
+<div class="row"><button class="go" id="bs">Старт</button><button class="stop" id="bt">Стоп</button><button class="rs" id="br">Сброс</button><button id="bn">Начать заново</button></div>
+<div class="row"><label>Скорость времени <select id="mult"><option value="1">x1</option><option value="10">x10</option><option value="50" selected>x50</option><option value="100">x100</option></select></label>
+<label>Расход при 100% <select id="mf"><option value="400" selected>400 т/ч</option><option value="1000">1000 т/ч</option></select></label></div>
+<h2>Имитация отказов</h2>
+<div class="faults" id="fl"></div>
+<p class="mut">Это визуальная копия логики из CODESYS (PLC_PRG), а не сам PLC. Учебный проект: к реальной безопасности отношения не имеет.</p>
+</main>
+<script>
+const S={IDLE:0,CHECK:10,OV:20,PS:30,LS:40,LF:50,RD:60,SP:70,CV:80,DONE:90,FAULT:100};
+const NAME={0:"Ожидание",10:"Проверка условий",20:"Открытие задвижек",30:"Пуск насоса",40:"Медленный налив",50:"Основной налив",60:"Снижение скорости",70:"Остановка насоса",80:"Закрытие задвижек",90:"Налив завершён",100:"АВАРИЯ"};
+const FAULT={0:"нет",1:"Аварийная остановка",2:"Нет заземления",3:"Загазованность",4:"Утечка",5:"Переполнение танкера",6:"Нет потока",7:"Высокое давление",8:"Сухой ход насоса",9:"Задвижки не открылись"};
+const P={target:80,slowM:2,rampM:5,lead:.05,slowS:30,fullS:100,finS:25,up:5,dn:10,minF:5,zeroF:.5,sucMin:.3,disMax:10,dt:.1};
+let maxFlow=400,v,inp;
+function init(){v={st:0,fault:0,mass:0,flow:0,speed:0,sp:0,press:2,suc:1.5,pumpRun:false,valves:false,openFb:false,closedFb:true,tOpen:0,tClosed:3,tCheck:0,tVal:0,tFlow:0,tSuc:0,tStop:0,reached:false,start:false,reset:false,stop:false};
+inp={estop:true,ground:true,gas:false,leak:false,over:false,dry:false};
+document.querySelectorAll("#fl input").forEach(c=>c.checked=false);}
+function step(){
+const d=P.dt,st=v.st;
+const pumping=st==S.PS||st==S.LS||st==S.LF||st==S.RD;
+const vc=st==S.OV||pumping||st==S.SP;
+const armed=vc||st==S.CV;
+v.suc=inp.dry?.1:1.5;
+const perm=inp.estop&&inp.ground&&!inp.gas&&!inp.leak&&!inp.over&&v.suc>=P.sucMin&&v.closedFb;
+v.tOpen=v.valves?v.tOpen+d:0;v.tClosed=!v.valves?v.tClosed+d:0;
+v.openFb=v.tOpen>=3;v.closedFb=v.tClosed>=3;
+const tgt=(v.openFb&&v.pumpRun)?v.speed/100*maxFlow:0;
+v.flow+=(tgt-v.flow)*.1;v.press=2+(v.flow/maxFlow)*6;
+if(v.flow>0)v.mass+=v.flow*d/3600;
+v.tCheck=(st==S.CHECK&&perm)?v.tCheck+d:0;
+v.tVal=st==S.OV?v.tVal+d:0;
+v.tFlow=st==S.PS?v.tFlow+d:0;
+v.tSuc=(pumping&&v.suc<P.sucMin)?v.tSuc+d:0;
+v.tStop=st==S.SP?v.tStop+d:0;
+let trip=0;
+if(armed){if(!inp.estop)trip=1;else if(!inp.ground)trip=2;else if(inp.gas)trip=3;else if(inp.leak)trip=4;else if(inp.over)trip=5;}
+if(pumping){if(!trip&&v.press>P.disMax)trip=7;if(!trip&&v.tSuc>=3)trip=8;}
+if(trip&&v.st!=S.FAULT){v.fault=trip;v.st=S.FAULT;}
+if(v.stop&&pumping)v.st=S.SP;
+v.sp=0;
+switch(v.st){
+case S.IDLE:if(v.start){v.mass=0;v.reached=false;v.st=S.CHECK;}break;
+case S.CHECK:if(v.stop)v.st=S.IDLE;else if(v.tCheck>=2)v.st=S.OV;break;
+case S.OV:if(v.stop)v.st=S.CV;else if(v.openFb)v.st=S.PS;else if(v.tVal>=30){v.fault=9;v.st=S.FAULT;}break;
+case S.PS:v.sp=P.slowS;if(v.flow>=P.minF)v.st=S.LS;else if(v.tFlow>=15){v.fault=6;v.st=S.FAULT;}break;
+case S.LS:v.sp=P.slowS;if(v.mass>=P.slowM)v.st=S.LF;break;
+case S.LF:v.sp=P.fullS;if(v.mass>=P.target-P.rampM)v.st=S.RD;break;
+case S.RD:v.sp=P.finS;if(v.mass>=P.target-P.lead){v.reached=true;v.st=S.SP;}break;
+case S.SP:if(v.flow<P.zeroF||v.tStop>=10)v.st=S.CV;break;
+case S.CV:if(v.closedFb)v.st=S.DONE;break;
+case S.DONE:if(v.reset)v.st=S.IDLE;break;
+case S.FAULT:if(v.reset&&inp.estop&&inp.ground&&!inp.gas&&!inp.leak&&!inp.over){v.fault=0;v.st=S.IDLE;}break;}
+v.valves=vc;v.pumpRun=pumping;
+if(!v.pumpRun)v.speed=0;
+else if(v.speed<v.sp)v.speed=Math.min(v.speed+P.up*d,v.sp);
+else if(v.speed>v.sp)v.speed=Math.max(v.speed-P.dn*d,v.sp);
+v.start=v.stop=v.reset=false;}
+const $=id=>document.getElementById(id);
+function vcol(){return v.openFb?"var(--ok)":(v.valves?"var(--warn)":"var(--line)")}
+function render(){
+const fr=Math.max(0,1-v.mass/P.target),h=62*fr;
+$("f1").setAttribute("y",96-h);$("f1").setAttribute("height",h);
+$("f2").setAttribute("y",236-h);$("f2").setAttribute("height",h);
+const th=132*Math.min(1,v.mass/P.target);
+$("ft").setAttribute("y",196-th);$("ft").setAttribute("height",th);
+$("tm").textContent=v.mass.toFixed(1)+" т";
+["v1","v2","v3"].forEach(i=>$(i).style.fill=vcol());
+$("svg").classList.toggle("on",v.flow>1&&v.openFb);
+const r=$("rot");r.classList.toggle("spin",v.pumpRun&&v.speed>0);
+r.style.animationDuration=(1.6-v.speed/100*1.4).toFixed(2)+"s";
+r.style.transformOrigin="0 0";
+$("pump").classList.toggle("bad",v.st==S.FAULT);
+$("pb").style.width=Math.min(100,v.mass/P.target*100)+"%";
+const b=$("banner");
+if(v.st==S.FAULT){b.className="bad";b.textContent="АВАРИЯ: "+FAULT[v.fault]+". Устрани причину и нажми «Сброс»."}
+else if(v.st==S.DONE){b.className="ok";b.textContent="Налив завершён: "+v.mass.toFixed(2)+" т"}
+else{b.className="";b.textContent="Состояние: "+NAME[v.st]}
+$("vals").innerHTML=[["Состояние",NAME[v.st]],["Налито, т",v.mass.toFixed(2)+" / 80"],["Расход, т/ч",v.flow.toFixed(0)],["Скорость насоса, %",v.speed.toFixed(0)],["Давление, бар",v.press.toFixed(1)],["Код аварии",v.fault+" ("+FAULT[v.fault]+")"]].map(a=>'<div class="card"><span>'+a[0]+'</span><b>'+a[1]+'</b></div>').join("");}
+const FL=[["estop","Нажата аварийная кнопка"],["over","Переполнение танкера"],["gas","Загазованность"],["leak","Утечка"],["ground","Нет заземления"],["dry","Сухой ход (низкое давление на всасе)"]];
+$("fl").innerHTML=FL.map(a=>'<label><input type="checkbox" data-k="'+a[0]+'">'+a[1]+'</label>').join("");
+document.querySelectorAll("#fl input").forEach(c=>c.onchange=()=>{const k=c.dataset.k;inp[k]=(k=="estop"||k=="ground")?!c.checked:c.checked;});
+$("bs").onclick=()=>v.start=true;$("bt").onclick=()=>v.stop=true;$("br").onclick=()=>v.reset=true;
+$("bn").onclick=()=>init();
+$("mf").onchange=e=>maxFlow=+e.target.value;
+init();
+setInterval(()=>{const m=+$("mult").value;for(let i=0;i<m;i++)step();render();},100);
+</script></body></html>
